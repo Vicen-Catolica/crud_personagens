@@ -2,8 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crud/services/personagem_service.dart';
 import 'package:flutter/material.dart';
 
+import '../models/item_inventario.dart';
+import '../models/missao.dart';
 import '../models/personagem.dart';
 import '../services/auth_service.dart';
+import '../services/inventario_service.dart';
+import '../services/missao_service.dart';
 
 const _fundo = Color(0xFF14100C);
 const _pergaminho = Color(0xFF241B13);
@@ -24,19 +28,30 @@ class _HomeScreenState extends State<HomeScreen> {
   final _auth = AuthService();
 
   final PersonagemService _service = PersonagemService();
+  final MissaoService _missaoService = MissaoService();
+  final InventarioService _inventarioService = InventarioService();
+
   final TextEditingController _nomeController = TextEditingController();
   final TextEditingController _vidaController = TextEditingController();
   final TextEditingController _forcaController = TextEditingController();
+  final TextEditingController _missaoTituloController = TextEditingController();
+  final TextEditingController _itemNomeController = TextEditingController();
+  final TextEditingController _itemQtdController = TextEditingController();
+
+  int _abaSelecionada = 0; // 0 = Heróis, 1 = Missões, 2 = Inventário
 
   @override
-  void dispose(){
+  void dispose() {
     _nomeController.dispose();
     _vidaController.dispose();
     _forcaController.dispose();
+    _missaoTituloController.dispose();
+    _itemNomeController.dispose();
+    _itemQtdController.dispose();
     super.dispose();
   }
 
-  Future<void> _criarHeroi() async{
+  Future<void> _criarHeroi() async {
     final nome = _nomeController.text.trim();
     if (nome.isEmpty) return;
 
@@ -50,13 +65,44 @@ class _HomeScreenState extends State<HomeScreen> {
     _nomeController.clear();
   }
 
-  Future<void> _atacar(Personagem p) async{
+  Future<void> _concluirMissao() async {
+    final titulo = _missaoTituloController.text.trim();
+    if (titulo.isEmpty) return;
+
+    await _missaoService.concluirMissao(titulo);
+    _missaoTituloController.clear();
+  }
+
+  Future<void> _adicionarItemInventario() async {
+    final nome = _itemNomeController.text.trim();
+    if (nome.isEmpty) return;
+
+    final item = ItemInventario(
+      nome: nome,
+      quantidade: int.tryParse(_itemQtdController.text) ?? 1,
+    );
+
+    await _inventarioService.adicionarItem(item);
+    _itemNomeController.clear();
+    _itemQtdController.clear();
+  }
+
+  Future<void> _atacar(Personagem p) async {
     final novaVida = (p.vida! - 20).clamp(0, 9999);
     await _service.tomarDano(p.id!, novaVida);
   }
 
   Future<void> _curar(Personagem p) =>
       _service.tomarDano(p.id!, (p.vida! + 20).clamp(0, _vidaMax));
+
+  String _formatarDataHora(DateTime dt) {
+    final dia = dt.day.toString().padLeft(2, '0');
+    final mes = dt.month.toString().padLeft(2, '0');
+    final ano = dt.year;
+    final hora = dt.hour.toString().padLeft(2, '0');
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '$dia/$mes/$ano às $hora:$min';
+  }
 
   // Escolhe o ícone do herói pela "classe" digitada no nome
   IconData _iconeDe(String nome) {
@@ -89,9 +135,20 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             children: [
               _cabecalho(),
-              _formulario(),
-              _tituloSecao('⚔  LISTA DE HERÓIS  ⚔'),
-              Expanded(child: _listaHerois()),
+              _seletorAbas(),
+              if (_abaSelecionada == 0) ...[
+                _formulario(),
+                _tituloSecao('⚔  LISTA DE HERÓIS  ⚔'),
+                Expanded(child: _listaHerois()),
+              ] else if (_abaSelecionada == 1) ...[
+                _formularioMissao(),
+                _tituloSecao('📜  MISSÕES CONCLUÍDAS  📜'),
+                Expanded(child: _listaMissoes()),
+              ] else ...[
+                _formularioInventario(),
+                _tituloSecao('🎒  INVENTÁRIO DO AVENTUREIRO  🎒'),
+                Expanded(child: _listaInventario()),
+              ],
             ],
           ),
         ),
@@ -117,10 +174,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   shadows: [Shadow(color: Colors.black, blurRadius: 6)],
                 ),
               ),
-              // Aqui mostra quem está logado
-              Text(
-                _auth.usuarioAtual?.email ?? '',
-                style: const TextStyle(color: _textoClaro, fontSize: 12),
+              // Desafio Bônus 1: Lê e exibe os dados de perfil de usuarios/{uid}
+              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: _auth.obterPerfilUsuario(),
+                builder: (context, snapshot) {
+                  final dados = snapshot.data?.data();
+                  final email =
+                      dados?['email'] as String? ?? _auth.usuarioAtual?.email ?? '';
+                  final criadoEmTs = dados?['criadoEm'];
+                  String subtitulo = email;
+                  if (criadoEmTs is Timestamp) {
+                    final dt = criadoEmTs.toDate();
+                    final dia = dt.day.toString().padLeft(2, '0');
+                    final mes = dt.month.toString().padLeft(2, '0');
+                    final ano = dt.year;
+                    subtitulo = '$email • Desde $dia/$mes/$ano';
+                  }
+                  // Aqui mostra quem está logado
+                  return Text(
+                    subtitulo,
+                    style: const TextStyle(color: _textoClaro, fontSize: 12),
+                  );
+                },
               ),
               const SizedBox(height: 4),
               Container(
@@ -147,6 +222,47 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _seletorAbas() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      child: Row(
+        children: [
+          _botaoAba(0, Icons.shield, 'HERÓIS'),
+          const SizedBox(width: 8),
+          _botaoAba(1, Icons.menu_book, 'MISSÕES'),
+          const SizedBox(width: 8),
+          _botaoAba(2, Icons.backpack, 'INVENTÁRIO'),
+        ],
+      ),
+    );
+  }
+
+  Widget _botaoAba(int index, IconData icone, String rotulo) {
+    final ativo = _abaSelecionada == index;
+    return Expanded(
+      child: OutlinedButton.icon(
+        onPressed: () => setState(() => _abaSelecionada = index),
+        icon: Icon(icone, size: 16, color: ativo ? _fundo : _ouro),
+        label: Text(
+          rotulo,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: ativo ? _fundo : _textoClaro,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: ativo ? _ouro : _pergaminho,
+          side: BorderSide(color: ativo ? _ouro : _borda, width: 1.5),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
       ),
     );
   }
@@ -433,6 +549,271 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // Parte 3: Formulário e listagem da subcoleção usuarios/{uid}/missoes
+  Widget _formularioMissao() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _pergaminho,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borda, width: 2),
+        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 8)],
+      ),
+      child: Column(
+        children: [
+          TextField(
+            controller: _missaoTituloController,
+            style: const TextStyle(color: _textoClaro),
+            decoration: const InputDecoration(
+              labelText: 'Título da missão (ex: Derrotar o Dragão de Fogo)',
+              prefixIcon: Icon(Icons.flag, color: _ouro),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: ElevatedButton.icon(
+              onPressed: _concluirMissao,
+              icon: const Icon(Icons.check_circle_outline),
+              label: const Text(
+                'CONCLUIR MISSÃO',
+                style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF8B1E1E),
+                foregroundColor: _textoClaro,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: const BorderSide(color: _ouro, width: 1.5),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _listaMissoes() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _missaoService.listarMissoes(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Erro: ${snapshot.error}',
+                style: const TextStyle(color: Colors.redAccent)),
+          );
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: _ouro));
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return const Center(
+            child: Text(
+              'Nenhuma missão concluída ainda...',
+              style: TextStyle(
+                  color: _borda, fontStyle: FontStyle.italic, fontSize: 15),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.only(bottom: 16),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final m = Missao.fromMap(doc.data(), id: doc.id);
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _pergaminho,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _borda, width: 2),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black54, blurRadius: 6)
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.emoji_events, color: _ouro, size: 32),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          m.titulo,
+                          style: const TextStyle(
+                            color: _textoClaro,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Concluída em: ${_formatarDataHora(m.concluidaEm)}',
+                          style: const TextStyle(color: _ouro, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Excluir missão',
+                    onPressed: () => _missaoService.deletarMissao(m.id!),
+                    icon: const Icon(Icons.delete_forever,
+                        color: Colors.redAccent),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Desafio Bônus 2: Subcoleção usuarios/{uid}/inventario protegida pela mesma regra recursiva
+  Widget _formularioInventario() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _pergaminho,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _borda, width: 2),
+        boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 8)],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: TextField(
+                  controller: _itemNomeController,
+                  style: const TextStyle(color: _textoClaro),
+                  decoration: const InputDecoration(
+                    labelText: 'Item (ex: Poção de Mana)',
+                    prefixIcon: Icon(Icons.science, color: _ouro),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 1,
+                child: TextField(
+                  controller: _itemQtdController,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(color: _textoClaro),
+                  decoration: const InputDecoration(
+                    labelText: 'Qtd',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 46,
+            child: ElevatedButton.icon(
+              onPressed: _adicionarItemInventario,
+              icon: const Icon(Icons.add_box),
+              label: const Text(
+                'GUARDAR NO INVENTÁRIO',
+                style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF8B1E1E),
+                foregroundColor: _textoClaro,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: const BorderSide(color: _ouro, width: 1.5),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _listaInventario() {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _inventarioService.listarItens(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Erro: ${snapshot.error}',
+                style: const TextStyle(color: Colors.redAccent)),
+          );
+        }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: _ouro));
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return const Center(
+            child: Text(
+              'Sua mochila está vazia...',
+              style: TextStyle(
+                  color: _borda, fontStyle: FontStyle.italic, fontSize: 15),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.only(bottom: 16),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final doc = docs[index];
+            final item = ItemInventario.fromMap(doc.data(), id: doc.id);
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _pergaminho,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _borda, width: 2),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black54, blurRadius: 6)
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.inventory_2, color: _ouro, size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '${item.nome} (x${item.quantidade})',
+                      style: const TextStyle(
+                        color: _textoClaro,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Descartar item',
+                    onPressed: () => _inventarioService.removerItem(item.id!),
+                    icon: const Icon(Icons.delete_forever,
+                        color: Colors.redAccent),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
