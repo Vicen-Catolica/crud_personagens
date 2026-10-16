@@ -2,13 +2,6 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Parte 2: Cada usuário só lê e escreve dentro de usuarios/{o próprio uid},
-    // valendo para o próprio documento de perfil e qualquer subcoleção atual ou futura
-    // (personagens, missoes, inventario, etc.) graças ao curinga recursivo {document=**}.
-    // Usuário não logado (request.auth == null) não acessa nada.
-    //
-    // Desafio Bônus 3: Impede que um personagem seja criado ou atualizado com vida negativa
-    // validando request.resource.data.vida >= 0 quando o campo 'vida' estiver presente.
     match /usuarios/{userId}/{document=**} {
       allow read, delete: if request.auth != null && request.auth.uid == userId;
       allow create, update: if request.auth != null
