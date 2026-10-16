@@ -40,7 +40,6 @@ class _LoginPageState extends State<LoginPage> {
       } else {
         await _auth.entrar(email, senha);
       }
-      // Não há Navigator aqui: o AuthGate troca a tela sozinho
     } on FirebaseAuthException catch (e) {
       setState(() => _erro = e.message ?? e.code);
     } finally {

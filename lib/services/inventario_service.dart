@@ -6,10 +6,8 @@ import '../models/item_inventario.dart';
 class InventarioService {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
-  // UID do usuário logado
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
 
-  // Subcoleção de inventário dentro do documento do usuário logado: usuarios/{uid}/inventario
   CollectionReference<Map<String, dynamic>> get _colecao => firestore
       .collection('usuarios')
       .doc(_uid)

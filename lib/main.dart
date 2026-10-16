@@ -49,13 +49,11 @@ class MyCrud extends StatelessWidget {
           ),
         ),
       ),
-      //home: HomeScreen(),
-      home: AuthGate(), // Agora chamamos
+      home: AuthGate(),
     );
   }
 }
 
-// O vigia. Redesenha a tela quando a sessão muda
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -70,9 +68,9 @@ class AuthGate extends StatelessWidget {
           );
         }
         if (snapshot.hasData) {
-          return const HomeScreen(); // user != null - Aqui chamamos a home somente se estiver logado
+          return const HomeScreen();
         }
-        return const LoginPage(); // user == null - Aqui retorna para a página de login caso não tiver login
+        return const LoginPage();
       },
     );
   }

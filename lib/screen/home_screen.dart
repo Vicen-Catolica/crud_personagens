@@ -24,7 +24,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  //chamada do serviço de autenticação
   final _auth = AuthService();
 
   final PersonagemService _service = PersonagemService();
@@ -38,7 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _itemNomeController = TextEditingController();
   final TextEditingController _itemQtdController = TextEditingController();
 
-  int _abaSelecionada = 0; // 0 = Heróis, 1 = Missões, 2 = Inventário
+  int _abaSelecionada = 0;
 
   @override
   void dispose() {
@@ -104,7 +103,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return '$dia/$mes/$ano às $hora:$min';
   }
 
-  // Escolhe o ícone do herói pela "classe" digitada no nome
   IconData _iconeDe(String nome) {
     final n = nome.toLowerCase();
     if (n.contains('mago') || n.contains('bruxo')) return Icons.auto_fix_high;
@@ -174,7 +172,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   shadows: [Shadow(color: Colors.black, blurRadius: 6)],
                 ),
               ),
-              // Desafio Bônus 1: Lê e exibe os dados de perfil de usuarios/{uid}
               StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                 stream: _auth.obterPerfilUsuario(),
                 builder: (context, snapshot) {
@@ -190,7 +187,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     final ano = dt.year;
                     subtitulo = '$email • Desde $dia/$mes/$ano';
                   }
-                  // Aqui mostra quem está logado
                   return Text(
                     subtitulo,
                     style: const TextStyle(color: _textoClaro, fontSize: 12),
@@ -211,7 +207,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          // Botão para logout. O AuthGate leva de volta ao Login sozinho
           Positioned(
             right: 0,
             top: 0,
@@ -398,7 +393,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final morto = p.vida! <= 0;
     final pct = (p.vida! / _vidaMax).clamp(0.0, 1.0);
 
-    // Verde -> amarelo -> vermelho conforme a vida
     final corVida = pct > 0.6
         ? const Color(0xFF4CAF50)
         : pct > 0.3
@@ -420,7 +414,6 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Row(
               children: [
-                // Avatar
                 Container(
                   width: 52,
                   height: 52,
@@ -472,7 +465,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            // Barra de vida estilo RPG
             Stack(
               alignment: Alignment.center,
               children: [
@@ -552,7 +544,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Parte 3: Formulário e listagem da subcoleção usuarios/{uid}/missoes
   Widget _formularioMissao() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -680,7 +671,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Desafio Bônus 2: Subcoleção usuarios/{uid}/inventario protegida pela mesma regra recursiva
   Widget _formularioInventario() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),

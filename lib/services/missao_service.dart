@@ -6,10 +6,8 @@ import '../models/missao.dart';
 class MissaoService {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
-  // UID do usuário logado
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
 
-  // Subcoleção de missões dentro do documento do usuário logado: usuarios/{uid}/missoes
   CollectionReference<Map<String, dynamic>> get _colecao => firestore
       .collection('usuarios')
       .doc(_uid)

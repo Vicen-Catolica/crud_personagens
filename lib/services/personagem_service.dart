@@ -6,10 +6,8 @@ import '../models/personagem.dart';
 class PersonagemService {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
 
-  // UID do usuário logado
   String get _uid => FirebaseAuth.instance.currentUser!.uid;
 
-  // Subcoleção de personagens dentro do documento do usuário logado: usuarios/{uid}/personagens
   CollectionReference<Map<String, dynamic>> get _colecao => firestore
       .collection('usuarios')
       .doc(_uid)
@@ -20,8 +18,6 @@ class PersonagemService {
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> listarPersonagens() {
-    // Como cada usuário tem sua própria subcoleção em usuarios/{uid}/personagens,
-    // não precisamos mais filtrar com .where('userId', isEqualTo: _uid)
     return _colecao.snapshots();
   }
 
